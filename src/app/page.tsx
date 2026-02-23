@@ -1,66 +1,75 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+"use client";
+
+import { useState } from "react";
+import { Container, Box, VStack, Flex } from "@chakra-ui/react";
+import { useOrderBook } from "@/hooks/useOrderBook";
+import { MarketHeader } from "@/components/MarketHeader";
+import { ConnectionStatus } from "@/components/ConnectionStatus";
+import { OrderBookTable } from "@/components/OrderBook/OrderBookTable";
+import { DepthVisualization } from "@/components/OrderBook/DepthVisualization";
+import { VenueFilter, VenueView } from "@/components/OrderBook/VenueFilter";
+import { QuoteCalculator } from "@/components/QuoteCalculator";
 
 export default function Home() {
+  const { orderBook, sseStatus } = useOrderBook();
+  const [venueView, setVenueView] = useState<VenueView>("combined");
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <Container maxW="6xl" py={8}>
+      <VStack gap={6} align="stretch">
+        {/* Header */}
+        <Box>
+          <MarketHeader orderBook={orderBook} />
+          <Box mt={3}>
+            <ConnectionStatus
+              venues={orderBook.venues}
+              sseStatus={sseStatus}
             />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+          </Box>
+        </Box>
+
+        {/* Order Book */}
+        <Box
+          borderRadius="xl"
+          border="1px solid"
+          borderColor="whiteAlpha.200"
+          bg="whiteAlpha.50"
+          overflow="hidden"
+        >
+          <Flex justify="space-between" align="center" p={4} borderBottom="1px solid" borderColor="whiteAlpha.200">
+            <Box fontSize="lg" fontWeight="bold">
+              Order Book
+            </Box>
+            <VenueFilter active={venueView} onChange={setVenueView} />
+          </Flex>
+          <OrderBookTable
+            bids={orderBook.bids}
+            asks={orderBook.asks}
+            venueView={venueView}
+          />
+        </Box>
+
+        {/* Depth Visualization */}
+        <Box
+          borderRadius="xl"
+          border="1px solid"
+          borderColor="whiteAlpha.200"
+          bg="whiteAlpha.50"
+          p={4}
+        >
+          <Box fontSize="lg" fontWeight="bold" mb={3}>
+            Depth
+          </Box>
+          <DepthVisualization
+            bids={orderBook.bids}
+            asks={orderBook.asks}
+            venueView={venueView}
+          />
+        </Box>
+
+        {/* Quote Calculator */}
+        <QuoteCalculator orderBook={orderBook} />
+      </VStack>
+    </Container>
   );
 }
