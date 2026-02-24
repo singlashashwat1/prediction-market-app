@@ -81,53 +81,14 @@ Both venue connections live server-side in a single Next.js API route (`/api/ord
 
 ---
 
-## Market Configuration
-
-Hardcode a specific market that exists on both platforms (e.g., "Will JD Vance win the 2028 US Presidential Election?"). Store token IDs / tickers in `src/config/markets.ts`. Look up the actual IDs during implementation via each platform's REST API.
-
----
-
-## Project Structure
-
-```
-src/
-├── app/
-│   ├── layout.tsx                    # Root layout with Chakra Provider
-│   ├── page.tsx                      # Main dashboard page
-│   └── api/
-│       └── orderbook/
-│           └── stream/
-│               └── route.ts          # SSE endpoint: both WS -> aggregate -> SSE
-├── server/
-│   ├── polymarketClient.ts           # Server-side Polymarket WS client
-│   └── kalshiClient.ts              # Server-side Kalshi stream client (via DFlow WS)
-├── components/
-│   ├── MarketHeader.tsx              # Market title, outcomes, best prices
-│   ├── OrderBook/
-│   │   ├── OrderBookTable.tsx        # Bid/ask table with venue colors
-│   │   └── VenueFilter.tsx           # Toggle: Combined / Polymarket / Kalshi
-│   ├── QuoteCalculator.tsx           # Dollar input -> shares output + venue fill split
-│   └── ConnectionStatus.tsx          # Live status indicators per venue
-├── hooks/
-│   └── useOrderBook.ts              # Single EventSource hook -> React state
-├── lib/
-│   ├── types.ts                      # Shared TypeScript interfaces
-│   ├── aggregator.ts                 # Merge order books, sort levels (server)
-│   └── quoteEngine.ts               # Walk the book, calc fills (client)
-└── config/
-    └── markets.ts                    # Market IDs for both venues
-```
-
----
-
 ## Key TypeScript Types (`src/lib/types.ts`)
 
 ```typescript
 type Venue = "polymarket" | "kalshi";
 
 interface OrderBookLevel {
-  price: number;       // 0-1 decimal
-  size: number;        // number of shares/contracts
+  price: number; // 0-1 decimal
+  size: number; // number of shares/contracts
   venue: Venue;
 }
 
@@ -140,8 +101,8 @@ interface VenueOrderBook {
 }
 
 interface AggregatedOrderBook {
-  bids: OrderBookLevel[];  // sorted descending by price
-  asks: OrderBookLevel[];  // sorted ascending by price
+  bids: OrderBookLevel[]; // sorted descending by price
+  asks: OrderBookLevel[]; // sorted ascending by price
   venues: Record<Venue, VenueOrderBook>;
 }
 
@@ -156,54 +117,6 @@ interface QuoteResult {
 
 ---
 
-## UI Layout
-
-```
-+--------------------------------------------------+
-|  Market Header: "Will JD Vance win 2028?"        |
-|  Best Bid: $0.42  |  Best Ask: $0.45             |
-|  [Polymarket: connected] [Kalshi: connected]     |
-+--------------------------------------------------+
-|                                                    |
-|  [Combined] [Polymarket] [Kalshi]  <- venue tabs  |
-|                                                    |
-|  BIDS (buy)          |  ASKS (sell)               |
-|  ████████ 0.42  200  |  0.45  150  ██████         |
-|  ██████   0.41  150  |  0.46  300  ████████████   |
-|  ████     0.40  100  |  0.47   80  ████           |
-|  (blue=Poly, green=Kalshi in stacked bars)        |
-|                                                    |
-+--------------------------------------------------+
-|  Quote Calculator                                  |
-|  I want to spend: [$___100___]                    |
-|  Outcome: [Yes v]                                  |
-|                                                    |
-|  You would receive: ~222 shares @ avg $0.45        |
-|  ┌──────────────────────────────────────┐          |
-|  │ Polymarket: 150 shares @ $0.45 = $67 │          |
-|  │ Kalshi:      72 shares @ $0.46 = $33 │          |
-|  └──────────────────────────────────────┘          |
-+--------------------------------------------------+
-```
-
----
-
-## Long-Running Behavior
-
-- **Server-side WS clients**: Both auto-reconnect with exponential backoff. Each client tracks its own connection status.
-- **SSE stream**: Sends periodic heartbeat events (every 15s) to keep connection alive. Includes per-venue status in every data event.
-- **Browser EventSource**: Auto-reconnects natively if the SSE connection drops.
-- **Memory**: In-memory order book is replaced (not appended) on every update. Limit depth to top N levels to bound memory.
-- **Connection status**: Each venue shows a colored dot (green/yellow/red) + "connected" / "reconnecting" / "disconnected" with last-update timestamp.
-
----
-
-## Environment Variables
-
-No environment variables are required. The app uses fixed WebSocket endpoints from `src/config/markets.ts`.
-
----
-
 ## Key Design Decisions
 
 - **All-backend architecture**: Both venue WebSockets live server-side. Server handles normalization + aggregation. Frontend is a pure display layer with one SSE connection.
@@ -211,19 +124,3 @@ No environment variables are required. The app uses fixed WebSocket endpoints fr
 - **SSE to browser (not WebSocket proxy)**: SSE is simpler, auto-reconnects natively via `EventSource`, and is sufficient for server-to-client streaming. No bidirectional communication needed.
 - **In-memory aggregation (no DB)**: Order book data is ephemeral and high-frequency. A database would add latency for data with zero long-term value.
 - **Venue-tagged levels**: Every order book level carries its venue tag, enabling the combined/individual views and split calculations without separate data structures.
-
----
-
-## Implementation Todos
-
-1. Create shared types (`types.ts`) and market configuration (`markets.ts`) with token IDs / tickers for both venues
-2. Build server-side WebSocket clients for both Polymarket and DFlow (Kalshi stream) with reconnection logic
-3. Implement server-side normalization inside venue clients and `aggregator.ts` (merge + sort both books)
-4. Build single Next.js API route `/api/orderbook/stream` that manages both WS connections, aggregates in-memory, and streams combined book via SSE
-5. Build `useOrderBook` hook -- single EventSource connection to `/api/orderbook/stream`, parses SSE events into React state
-6. Implement `quoteEngine.ts` -- walk the aggregated book to calculate fills, venue splits, and average price for a given dollar amount
-7. Build OrderBookTable component with venue color coding and Combined/Polymarket/Kalshi toggle
-8. Build QuoteCalculator with per-venue fill split output
-9. Build MarketHeader + ConnectionStatus components showing live venue health
-10. Wire everything together in `page.tsx`, test with live data, handle edge cases (empty books, disconnections)
-11. Write README with setup instructions, design decisions, assumptions, tradeoffs, and potential improvements
