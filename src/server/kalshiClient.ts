@@ -9,6 +9,7 @@ import { OrderBookLevel } from "@/lib/types";
  */
 export class KalshiClient {
   private ws: WebSocket | null = null;
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private reconnectDelay = 1000;
   private maxReconnectDelay = 30000;
@@ -47,6 +48,12 @@ export class KalshiClient {
           tickers: [this.marketTicker],
         }),
       );
+
+      this.pingInterval = setInterval(() => {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.ping();
+        }
+      }, 10000);
     });
 
     this.ws.on("message", (data: WebSocket.Data) => {
@@ -62,6 +69,7 @@ export class KalshiClient {
     });
 
     this.ws.on("close", () => {
+      this.cleanup();
       this.onStatusChange("disconnected");
       this.scheduleReconnect();
     });
@@ -124,8 +132,16 @@ export class KalshiClient {
     );
   }
 
+  private cleanup(): void {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+  }
+
   destroy(): void {
     this.isDestroyed = true;
+    this.cleanup();
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
