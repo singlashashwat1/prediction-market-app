@@ -2,6 +2,7 @@
 
 import { Box, Flex, Text, Grid } from "@chakra-ui/react";
 import { OrderBookLevel } from "@/lib/types";
+import { formatCents, formatSize } from "@/lib/formatters";
 import { VenueView } from "./VenueFilter";
 
 interface OrderBookTableProps {
@@ -14,22 +15,20 @@ function getVenueColor(venue: string): string {
   return venue === "polymarket" ? "blue.400" : "green.400";
 }
 
-function formatPrice(price: number): string {
-  return `$${price.toFixed(3)}`;
-}
-
-function formatSize(size: number): string {
-  if (size >= 1000000) return `${(size / 1000000).toFixed(1)}M`;
-  if (size >= 1000) return `${(size / 1000).toFixed(1)}K`;
-  return size.toFixed(0);
-}
-
 function filterByVenue(
   levels: OrderBookLevel[],
-  venueView: VenueView
+  venueView: VenueView,
 ): OrderBookLevel[] {
   if (venueView === "combined") return levels;
   return levels.filter((l) => l.venue === venueView);
+}
+
+function formatTotal(price: number, size: number): string {
+  const total = price * size;
+  return `$${total.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function DepthBar({
@@ -48,7 +47,13 @@ function DepthBar({
   const justify = side === "bid" ? "flex-end" : "flex-start";
 
   return (
-    <Box position="absolute" top={0} bottom={0} {...(side === "bid" ? { right: 0 } : { left: 0 })} width="100%">
+    <Box
+      position="absolute"
+      top={0}
+      bottom={0}
+      {...(side === "bid" ? { right: 0 } : { left: 0 })}
+      width="100%"
+    >
       <Box
         position="absolute"
         top={0}
@@ -77,7 +82,7 @@ function LevelRow({
 
   return (
     <Grid
-      templateColumns="1fr 1fr 80px"
+      templateColumns="1fr 1fr 1fr 80px"
       py={1}
       px={3}
       position="relative"
@@ -85,12 +90,20 @@ function LevelRow({
       fontSize="sm"
       fontFamily="mono"
     >
-      <DepthBar size={level.size} maxSize={maxSize} side={side} venue={level.venue} />
+      <DepthBar
+        size={level.size}
+        maxSize={maxSize}
+        side={side}
+        venue={level.venue}
+      />
       <Text color={textColor} zIndex={1}>
-        {formatPrice(level.price)}
+        {formatCents(level.price)}
       </Text>
       <Text textAlign="right" zIndex={1}>
         {formatSize(level.size)}
+      </Text>
+      <Text textAlign="right" zIndex={1} fontFamily="mono">
+        {formatTotal(level.price, level.size)}
       </Text>
       <Text
         textAlign="right"
@@ -104,11 +117,7 @@ function LevelRow({
   );
 }
 
-export function OrderBookTable({
-  bids,
-  asks,
-  venueView,
-}: OrderBookTableProps) {
+export function OrderBookTable({ bids, asks, venueView }: OrderBookTableProps) {
   const filteredBids = filterByVenue(bids, venueView);
   const filteredAsks = filterByVenue(asks, venueView);
 
@@ -119,14 +128,46 @@ export function OrderBookTable({
     <Flex direction={{ base: "column", md: "row" }} gap={0} width="100%">
       {/* Bids */}
       <Box flex={1} minW={0}>
-        <Grid templateColumns="1fr 1fr 80px" px={3} py={2} borderBottom="1px solid" borderColor="whiteAlpha.200">
-          <Text fontSize="xs" fontWeight="bold" color="green.300" textTransform="uppercase">
+        <Grid
+          templateColumns="1fr 1fr 1fr 80px"
+          px={3}
+          py={2}
+          borderBottom="1px solid"
+          borderColor="whiteAlpha.200"
+        >
+          <Text
+            fontSize="xs"
+            fontWeight="bold"
+            color="green.300"
+            textTransform="uppercase"
+          >
             Bid Price
           </Text>
-          <Text fontSize="xs" fontWeight="bold" textAlign="right" textTransform="uppercase" color="fg.muted">
+          <Text
+            fontSize="xs"
+            fontWeight="bold"
+            textAlign="right"
+            textTransform="uppercase"
+            color="fg.muted"
+          >
             Size
           </Text>
-          <Text fontSize="xs" fontWeight="bold" textAlign="right" textTransform="uppercase" color="fg.muted">
+          <Text
+            fontSize="xs"
+            fontWeight="bold"
+            textAlign="right"
+            textTransform="uppercase"
+            color="fg.muted"
+          >
+            Total
+          </Text>
+          <Text
+            fontSize="xs"
+            fontWeight="bold"
+            textAlign="right"
+            textTransform="uppercase"
+            color="fg.muted"
+          >
             Venue
           </Text>
         </Grid>
@@ -136,7 +177,12 @@ export function OrderBookTable({
           </Text>
         ) : (
           filteredBids.map((level, i) => (
-            <LevelRow key={`bid-${i}`} level={level} maxSize={maxSize} side="bid" />
+            <LevelRow
+              key={`bid-${i}`}
+              level={level}
+              maxSize={maxSize}
+              side="bid"
+            />
           ))
         )}
       </Box>
@@ -150,14 +196,46 @@ export function OrderBookTable({
 
       {/* Asks */}
       <Box flex={1} minW={0}>
-        <Grid templateColumns="1fr 1fr 80px" px={3} py={2} borderBottom="1px solid" borderColor="whiteAlpha.200">
-          <Text fontSize="xs" fontWeight="bold" color="red.300" textTransform="uppercase">
+        <Grid
+          templateColumns="1fr 1fr 1fr 80px"
+          px={3}
+          py={2}
+          borderBottom="1px solid"
+          borderColor="whiteAlpha.200"
+        >
+          <Text
+            fontSize="xs"
+            fontWeight="bold"
+            color="red.300"
+            textTransform="uppercase"
+          >
             Ask Price
           </Text>
-          <Text fontSize="xs" fontWeight="bold" textAlign="right" textTransform="uppercase" color="fg.muted">
+          <Text
+            fontSize="xs"
+            fontWeight="bold"
+            textAlign="right"
+            textTransform="uppercase"
+            color="fg.muted"
+          >
             Size
           </Text>
-          <Text fontSize="xs" fontWeight="bold" textAlign="right" textTransform="uppercase" color="fg.muted">
+          <Text
+            fontSize="xs"
+            fontWeight="bold"
+            textAlign="right"
+            textTransform="uppercase"
+            color="fg.muted"
+          >
+            Total
+          </Text>
+          <Text
+            fontSize="xs"
+            fontWeight="bold"
+            textAlign="right"
+            textTransform="uppercase"
+            color="fg.muted"
+          >
             Venue
           </Text>
         </Grid>
@@ -167,7 +245,12 @@ export function OrderBookTable({
           </Text>
         ) : (
           filteredAsks.map((level, i) => (
-            <LevelRow key={`ask-${i}`} level={level} maxSize={maxSize} side="ask" />
+            <LevelRow
+              key={`ask-${i}`}
+              level={level}
+              maxSize={maxSize}
+              side="ask"
+            />
           ))
         )}
       </Box>

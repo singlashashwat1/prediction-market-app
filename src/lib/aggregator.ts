@@ -10,14 +10,14 @@ export function aggregateOrderBook(
   polymarketBids: OrderBookLevel[],
   polymarketAsks: OrderBookLevel[],
   kalshiBids: OrderBookLevel[],
-  kalshiAsks: OrderBookLevel[]
+  kalshiAsks: OrderBookLevel[],
 ): { bids: OrderBookLevel[]; asks: OrderBookLevel[] } {
   const allBids = [...polymarketBids, ...kalshiBids].sort(
-    (a, b) => b.price - a.price
+    (a, b) => b.price - a.price,
   );
 
   const allAsks = [...polymarketAsks, ...kalshiAsks].sort(
-    (a, b) => a.price - b.price
+    (a, b) => a.price - b.price,
   );
 
   return {

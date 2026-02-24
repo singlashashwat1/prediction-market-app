@@ -10,11 +10,6 @@ A real-time prediction market aggregator that combines order book data from **Po
 # Install dependencies
 pnpm install
 
-# (Optional) Add Kalshi WebSocket API keys for real-time WebSocket data
-# Without keys, Kalshi falls back to REST polling every 2 seconds
-cp .env.example .env.local
-# Edit .env.local with your Kalshi API key
-
 # Start the dev server
 pnpm dev
 ```
@@ -35,7 +30,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 Server (Next.js API Route):
   Polymarket WS ──→ normalize ──→ ┐
                                     ├─→ merged book (in-memory) ──→ single SSE stream
-  Kalshi WS/REST ──→ normalize ──→ ┘
+  Kalshi (via DFlow WS) ──→ normalize ──→ ┘
 
 Browser:
   one EventSource hook → render UI + quote calculator
@@ -45,10 +40,12 @@ Both venue connections live **server-side** in a single Next.js API route (`/api
 
 The browser is a pure display layer — one `useOrderBook` hook connects to the SSE stream and feeds the UI.
 
+The UI intentionally displays the order book for a single outcome (**YES**) to match the assignment requirement; NO-side interest is represented through implied pricing (e.g., NO bid at `X` maps to YES ask at `1 - X`).
+
 ### Why all-backend?
 
 - **Consistent data pipeline** — both venues follow the same normalization path
-- **Kalshi auth stays secure** — RSA keys never reach the browser
+- **No Kalshi API keys needed** — DFlow WebSocket provides market stream access
 - **Connection sharing** — multiple browser tabs share one connection per exchange
 - **Testable** — normalization and aggregation logic can be unit tested without React
 - **Production-realistic** — this is how real trading platforms work
@@ -61,7 +58,9 @@ The browser is a pure display layer — one `useOrderBook` hook connects to the 
 
 3. **Venue-tagged order book levels.** Every price level carries its venue tag (`polymarket` or `kalshi`), enabling the combined/individual views and cross-venue fill calculations without maintaining separate data structures.
 
-4. **Kalshi REST polling fallback.** Kalshi's WebSocket requires RSA key authentication. The app automatically falls back to REST polling every 2 seconds if API keys aren't configured — making it easy for reviewers to run immediately.
+   Price levels at the same price from different venues are intentionally kept as separate rows (instead of summed) to preserve venue attribution and support per-venue fill breakdown in quoting.
+
+4. **Kalshi stream via DFlow WebSocket.** Kalshi market data is consumed through DFlow's public dev WebSocket endpoint for real-time updates without API key setup.
 
 5. **Kalshi bid-only to bid/ask conversion.** Kalshi only returns bids for YES and NO sides. A NO bid at price X is converted to a YES ask at (1 - X).
 
@@ -69,7 +68,7 @@ The browser is a pure display layer — one `useOrderBook` hook connects to the 
 
 - **Single hardcoded market.** The app targets the JD Vance 2028 election market on both platforms. Making this configurable would require a market discovery/search feature.
 - **Polymarket prices are 0-1 decimals; Kalshi prices are in cents.** Both are normalized to 0-1 decimals server-side.
-- **Book depth capped at 20 levels per side.** This bounds memory and keeps the UI focused on actionable liquidity.
+- **Book depth capped at 50 levels per side.** This bounds memory while preserving enough depth for quoting and venue comparison.
 - **Quote calculator is a pricing exercise only.** No real orders are placed. Fills are simulated by walking the aggregated order book.
 - **Next.js API routes are long-lived in dev mode** but would become serverless functions on Vercel. For production deployment, a dedicated Node.js server or container would be needed to maintain persistent WebSocket connections.
 
@@ -78,7 +77,6 @@ The browser is a pure display layer — one `useOrderBook` hook connects to the 
 - **Unit tests** for normalizer, aggregator, and quote engine
 - **Market selector** to choose from multiple cross-listed markets
 - **Historical price chart** with time-series data
-- **Cumulative depth chart** (area chart) in addition to the bar visualization
 - **Throttled SSE updates** — batch multiple WebSocket events and send to the browser at a fixed rate (e.g., 10 updates/sec) to reduce render churn
 - **Connection health monitoring** with automatic stale-data warnings after N seconds without updates
 - **Error boundary** components for graceful failure handling
@@ -96,15 +94,13 @@ src/
 ├── server/
 │   ├── orderBookManager.ts           # Singleton: manages both WS clients + aggregation
 │   ├── polymarketClient.ts           # Polymarket WebSocket client
-│   ├── kalshiClient.ts              # Kalshi WebSocket/REST client
-│   └── kalshiAuth.ts                # RSA-PSS signing for Kalshi auth
+│   └── kalshiClient.ts              # Kalshi stream client (via DFlow WebSocket)
 ├── components/
 │   ├── MarketHeader.tsx              # Market question, best bid/ask, spread
 │   ├── ConnectionStatus.tsx          # Live venue status indicators
 │   ├── QuoteCalculator.tsx           # Dollar input → shares output with venue split
 │   └── OrderBook/
 │       ├── OrderBookTable.tsx        # Bid/ask table with venue colors
-│       ├── DepthVisualization.tsx    # Stacked depth bars by venue
 │       └── VenueFilter.tsx          # Combined / Polymarket / Kalshi toggle
 ├── hooks/
 │   └── useOrderBook.ts              # EventSource → React state
@@ -118,11 +114,4 @@ src/
 
 ## Environment Variables
 
-Create a `.env.local` file (optional — Kalshi works via REST polling without keys):
-
-```
-KALSHI_API_KEY_ID=your_key_id
-KALSHI_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
-```
-
-Generate Kalshi API keys at https://kalshi.com or use their [demo environment](https://demo-api.kalshi.co).
+No environment variables are required. The app uses a fixed DFlow WebSocket URL from `src/config/markets.ts`.

@@ -70,7 +70,7 @@ class OrderBookManager {
       (status: ConnectionStatus) => {
         this.polymarketStatus.status = status;
         this.broadcast();
-      }
+      },
     );
 
     this.kalshiClient = new KalshiClient(
@@ -84,7 +84,7 @@ class OrderBookManager {
       (status: ConnectionStatus) => {
         this.kalshiStatus.status = status;
         this.broadcast();
-      }
+      },
     );
 
     this.polymarketClient.connect();

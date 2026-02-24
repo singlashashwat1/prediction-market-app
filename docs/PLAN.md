@@ -2,7 +2,7 @@
 
 ## Overview
 
-Build a real-time prediction market aggregator with an all-backend architecture. Next.js API route connects to both Polymarket and Kalshi WebSockets server-side, normalizes and aggregates in-memory, and streams a single unified order book to the browser via SSE. Frontend is a pure display layer with a quote calculator.
+Build a real-time prediction market aggregator with an all-backend architecture. Next.js API route connects to Polymarket WebSocket and DFlow WebSocket (for Kalshi market stream) server-side, normalizes and aggregates in-memory, and streams a single unified order book to the browser via SSE. Frontend is a pure display layer with a quote calculator.
 
 ---
 
@@ -33,11 +33,11 @@ graph TB
 
     subgraph external [External APIs]
         POLY[Polymarket WS - wss://ws-subscriptions-clob.polymarket.com/ws/market]
-        KALSHI_WS[Kalshi WS - wss://api.elections.kalshi.com/trade-api/ws/v2]
+        KALSHI_WS[DFlow WS - wss://dev-prediction-markets-api.dflow.net/api/v1/ws]
     end
 
     PM_CLIENT -->|"WebSocket (public)"| POLY
-    KL_CLIENT -->|"WebSocket (RSA auth via .env)"| KALSHI_WS
+    KL_CLIENT -->|"WebSocket (public dev stream)"| KALSHI_WS
     HOOK -->|"Single SSE connection"| SSE
 ```
 
@@ -48,7 +48,7 @@ graph TB
 **Key difference between venues:**
 
 - **Polymarket**: Prices are 0-1 decimals (e.g., `"0.48"`). Provides both `bids` and `asks` arrays. Uses `asset_id` (token ID) per outcome. Public WebSocket, no auth.
-- **Kalshi**: Prices in cents (1-99). Only returns bids for YES and NO sides; asks are implied (`100 - opposite_bid`). WebSocket requires RSA key auth; REST orderbook is public.
+- **Kalshi via DFlow**: Stream provides YES and NO bid books keyed by decimal prices; asks are implied (`1 - no_bid`).
 
 **Normalization strategy**: Convert both to a common format with prices as decimals 0-1, explicit bids/asks, and venue tags on every level.
 
@@ -64,10 +64,10 @@ Both venue connections live server-side in a single Next.js API route (`/api/ord
   - Sends `PING` every 10s for keepalive
   - Auto-reconnects with exponential backoff
 
-- **Kalshi** (server-side WS client):
-  - Connects to `wss://api.elections.kalshi.com/trade-api/ws/v2` with RSA key auth
-  - Subscribes to `orderbook_delta` channel for `orderbook_snapshot` + `orderbook_delta` events
-  - Auth keys from `.env.local`: `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY`
+- **Kalshi via DFlow** (server-side WS client):
+  - Connects to `wss://dev-prediction-markets-api.dflow.net/api/v1/ws`
+  - Subscribes to `orderbook` channel for ticker `KXPRESPERSON-28-JVAN`
+  - No API key required in current setup
   - Auto-reconnects with exponential backoff
 
 - **Aggregation** (in-memory):
@@ -100,22 +100,18 @@ src/
 │               └── route.ts          # SSE endpoint: both WS -> aggregate -> SSE
 ├── server/
 │   ├── polymarketClient.ts           # Server-side Polymarket WS client
-│   ├── kalshiClient.ts              # Server-side Kalshi WS client (RSA auth)
-│   └── kalshiAuth.ts                # RSA signing helper for Kalshi
+│   └── kalshiClient.ts              # Server-side Kalshi stream client (via DFlow WS)
 ├── components/
 │   ├── MarketHeader.tsx              # Market title, outcomes, best prices
 │   ├── OrderBook/
 │   │   ├── OrderBookTable.tsx        # Bid/ask table with venue colors
-│   │   ├── DepthVisualization.tsx    # Horizontal depth bars by venue
 │   │   └── VenueFilter.tsx           # Toggle: Combined / Polymarket / Kalshi
-│   ├── QuoteCalculator.tsx           # Dollar input -> shares output
-│   ├── VenueSplitDisplay.tsx         # Shows fill breakdown across venues
+│   ├── QuoteCalculator.tsx           # Dollar input -> shares output + venue fill split
 │   └── ConnectionStatus.tsx          # Live status indicators per venue
 ├── hooks/
 │   └── useOrderBook.ts              # Single EventSource hook -> React state
 ├── lib/
 │   ├── types.ts                      # Shared TypeScript interfaces
-│   ├── normalizer.ts                 # Venue-specific -> common format (server)
 │   ├── aggregator.ts                 # Merge order books, sort levels (server)
 │   └── quoteEngine.ts               # Walk the book, calc fills (client)
 └── config/
@@ -195,28 +191,23 @@ interface QuoteResult {
 ## Long-Running Behavior
 
 - **Server-side WS clients**: Both auto-reconnect with exponential backoff. Each client tracks its own connection status.
-- **SSE stream**: Sends periodic heartbeat events (every 5s) to keep connection alive. Includes per-venue status in every data event.
+- **SSE stream**: Sends periodic heartbeat events (every 15s) to keep connection alive. Includes per-venue status in every data event.
 - **Browser EventSource**: Auto-reconnects natively if the SSE connection drops.
 - **Memory**: In-memory order book is replaced (not appended) on every update. Limit depth to top N levels to bound memory.
 - **Connection status**: Each venue shows a colored dot (green/yellow/red) + "connected" / "reconnecting" / "disconnected" with last-update timestamp.
 
 ---
 
-## Environment Variables (`.env.local`)
+## Environment Variables
 
-```
-KALSHI_API_KEY_ID=your_kalshi_api_key_id
-KALSHI_PRIVATE_KEY="-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----"
-```
-
-Reviewers will need to generate a Kalshi API key at https://kalshi.com (or use the demo environment). Instructions will be in the README.
+No environment variables are required. The app uses fixed WebSocket endpoints from `src/config/markets.ts`.
 
 ---
 
 ## Key Design Decisions
 
 - **All-backend architecture**: Both venue WebSockets live server-side. Server handles normalization + aggregation. Frontend is a pure display layer with one SSE connection.
-- **Why server-side for both**: Consistent data pipeline, easier to test, Kalshi auth stays secure, connection sharing across browser tabs/clients, production-realistic pattern.
+- **Why server-side for both**: Consistent data pipeline, easier to test, connection sharing across browser tabs/clients, production-realistic pattern.
 - **SSE to browser (not WebSocket proxy)**: SSE is simpler, auto-reconnects natively via `EventSource`, and is sufficient for server-to-client streaming. No bidirectional communication needed.
 - **In-memory aggregation (no DB)**: Order book data is ephemeral and high-frequency. A database would add latency for data with zero long-term value.
 - **Venue-tagged levels**: Every order book level carries its venue tag, enabling the combined/individual views and split calculations without separate data structures.
@@ -226,13 +217,13 @@ Reviewers will need to generate a Kalshi API key at https://kalshi.com (or use t
 ## Implementation Todos
 
 1. Create shared types (`types.ts`) and market configuration (`markets.ts`) with token IDs / tickers for both venues
-2. Build server-side WebSocket clients for both Polymarket (public) and Kalshi (RSA auth) with reconnection logic
-3. Implement `normalizer.ts` (venue-specific -> common format) and `aggregator.ts` (merge + sort both books) -- runs server-side
+2. Build server-side WebSocket clients for both Polymarket and DFlow (Kalshi stream) with reconnection logic
+3. Implement server-side normalization inside venue clients and `aggregator.ts` (merge + sort both books)
 4. Build single Next.js API route `/api/orderbook/stream` that manages both WS connections, aggregates in-memory, and streams combined book via SSE
 5. Build `useOrderBook` hook -- single EventSource connection to `/api/orderbook/stream`, parses SSE events into React state
 6. Implement `quoteEngine.ts` -- walk the aggregated book to calculate fills, venue splits, and average price for a given dollar amount
-7. Build OrderBookTable + DepthVisualization components with venue color coding and Combined/Polymarket/Kalshi toggle
-8. Build QuoteCalculator + VenueSplitDisplay components
+7. Build OrderBookTable component with venue color coding and Combined/Polymarket/Kalshi toggle
+8. Build QuoteCalculator with per-venue fill split output
 9. Build MarketHeader + ConnectionStatus components showing live venue health
 10. Wire everything together in `page.tsx`, test with live data, handle edge cases (empty books, disconnections)
 11. Write README with setup instructions, design decisions, assumptions, tradeoffs, and potential improvements

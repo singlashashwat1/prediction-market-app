@@ -39,7 +39,7 @@ export class PolymarketClient {
     private yesTokenId: string,
     private noTokenId: string,
     private onUpdate: (bids: OrderBookLevel[], asks: OrderBookLevel[]) => void,
-    private onStatusChange: (status: "connected" | "disconnected" | "connecting") => void
+    private onStatusChange: (status: "connected" | "disconnected" | "connecting") => void,
   ) {}
 
   connect(): void {

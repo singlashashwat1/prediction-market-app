@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Box, Flex, Text, Input, VStack, HStack } from "@chakra-ui/react";
 import { AggregatedOrderBook, Outcome, QuoteFill } from "@/lib/types";
 import { calculateQuote } from "@/lib/quoteEngine";
+import { formatCents } from "@/lib/formatters";
 
 interface QuoteCalculatorProps {
   orderBook: AggregatedOrderBook;
@@ -68,11 +69,17 @@ export function QuoteCalculator({ orderBook }: QuoteCalculatorProps) {
 
   const quote = useMemo(
     () => calculateQuote(orderBook, dollarAmount, outcome),
-    [orderBook, dollarAmount, outcome]
+    [orderBook, dollarAmount, outcome],
   );
 
   return (
-    <Box p={5} borderRadius="xl" border="1px solid" borderColor="whiteAlpha.200" bg="whiteAlpha.50">
+    <Box
+      p={5}
+      borderRadius="xl"
+      border="1px solid"
+      borderColor="whiteAlpha.200"
+      bg="whiteAlpha.50"
+    >
       <Text fontSize="lg" fontWeight="bold" mb={4}>
         Quote Calculator
       </Text>
@@ -147,7 +154,7 @@ export function QuoteCalculator({ orderBook }: QuoteCalculatorProps) {
                 Avg price
               </Text>
               <Text fontSize="sm" fontFamily="mono">
-                ${quote.avgPrice.toFixed(4)}
+                {formatCents(quote.avgPrice)}
               </Text>
             </Flex>
             {quote.unfilled > 0 && (
