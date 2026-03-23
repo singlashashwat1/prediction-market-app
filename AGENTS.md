@@ -16,7 +16,8 @@ This repo is a **prediction market aggregator** (Next.js, Polymarket + Kalshi or
 
 ## Commands
 
-- Install: `pnpm install`
+- Install: `pnpm install` (use Corepack + `packageManager` in `package.json` for the pinned pnpm version)
 - Dev: `pnpm dev`
 - Lint: `pnpm lint`
 - Build: `pnpm build`
+- Tests: `pnpm test` (Vitest); watch mode: `pnpm test:watch`
