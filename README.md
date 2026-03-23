@@ -6,12 +6,23 @@ A real-time prediction market aggregator that combines order book data from **Po
 
 ## Quick Start
 
+Use **pnpm** (recommended). If you don’t have it yet:
+
+```bash
+# Node 18+ — enable Corepack, then pnpm is pinned by package.json
+corepack enable
+corepack prepare pnpm@9.15.4 --activate
+```
+
 ```bash
 # Install dependencies
 pnpm install
 
 # Start the dev server
 pnpm dev
+
+# Run unit tests (Vitest)
+pnpm test
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
