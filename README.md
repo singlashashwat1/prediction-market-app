@@ -16,6 +16,13 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Lint & production build
+
+```bash
+pnpm lint
+pnpm build
+```
+
 ## Tech Stack
 
 - **Next.js 16** (App Router, TypeScript)
